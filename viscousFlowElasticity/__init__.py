@@ -25,10 +25,10 @@ __all__ = ["epsilon","sigma",
 
 
 # Import from submodules
-from linearElasticity import *
-from smoothing import *
-from volumeChange import *
-from plasticDeformation import *
-from simulation_1mL_minimal import *
-from geometry import *
+from viscousFlowElasticity.linearElasticity import *
+from viscousFlowElasticity.smoothing import *
+from viscousFlowElasticity.volumeChange import *
+from viscousFlowElasticity.plasticDeformation import *
+from viscousFlowElasticity.simulation_1mL_minimal import *
+from viscousFlowElasticity.geometry import *
 

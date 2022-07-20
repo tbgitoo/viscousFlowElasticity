@@ -9,13 +9,10 @@
 
 
 from ngsolve import *
-from ngsolve.bvp import BVP
-import netgen.meshing as nm
-import math
-from os import chdir
-from netgen.csg import *
 
-
+from viscousFlowElasticity.linearElasticity import getVanMises
+from viscousFlowElasticity.linearElasticity import epsilon
+from viscousFlowElasticity.linearElasticity import sigma
 
 
 def getPlasticDeformationContributionForLinearForm(fes,E,nu,targetChange):

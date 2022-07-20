@@ -9,8 +9,6 @@
 
 
 from ngsolve import *
-import netgen.meshing as nm
-
 
 # outward pointing normal for cylinder
 def normal_vector_cylinder(u):
@@ -39,7 +37,7 @@ def normal_vector_torus(u,torus_position_z=-0.001,radius_ring=0.0015):
 
 def get_targetposition_on_torus_surface(u,torus_position_z=-0.001,radius_ring=0.0015,
                                           radius_torus=0.001):
-    n=normal_vector_torus_segment(u,torus_position_z=torus_position_z,radius_ring=radius_ring)
+    n=normal_vector_torus(u,torus_position_z=torus_position_z,radius_ring=radius_ring)
     current_position = CoefficientFunction((x + u[0], y + u[1], z + u[2]))
     # We have the surface normal. To go to the torus center, we need to get the z position right
     d_to_torus_center = IfPos(n[2],(torus_position_z-current_position[2])/n[2],

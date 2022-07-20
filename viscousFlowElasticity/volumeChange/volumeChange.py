@@ -9,12 +9,8 @@
 
 
 from ngsolve import *
-from ngsolve.bvp import BVP
-import netgen.meshing as nm
-import math
-from os import chdir
-from netgen.csg import *
 
+from viscousFlowElasticity.linearElasticity import epsilon
 
 def sigmaVolumetric(volumeChange,E,nu,dim=3):
     lam = E * nu / ((1 + nu) * (1 - 2 * nu))

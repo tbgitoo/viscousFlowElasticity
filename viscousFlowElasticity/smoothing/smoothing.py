@@ -9,11 +9,7 @@
 
 
 from ngsolve import *
-from ngsolve.bvp import BVP
-import netgen.meshing as nm
 import math
-from os import chdir
-from netgen.csg import *
 
 def getMax(u,mesh):
     output=[]
