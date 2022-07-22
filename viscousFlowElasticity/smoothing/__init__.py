@@ -4,7 +4,10 @@
 __all__ = ["getMax","getAbsMax",
            "getSmoothened","getSmoothenedNormalized", "getSmoothenedNormalizedAxisymmetric",
            "getSmoothenedStressNormalizedAxisymmetric", "getSmoothenedGradient",
-           "getSmoothenedLaplacian"
+           "getSmoothenedLaplacian",
+           "getSmoothenedNormalizedAxisymmetricZDeformed",
+           "getSmoothenedNormalizedDeformedState",
+           "getSmoothenedDeformedState"
            ]
 
 
@@ -18,5 +21,8 @@ from .smoothing import getSmoothenedNormalizedAxisymmetric
 from .smoothing import getSmoothenedStressNormalizedAxisymmetric
 from .smoothing import getSmoothenedGradient
 from .smoothing import getSmoothenedLaplacian
+from .smoothing import getSmoothenedNormalizedAxisymmetricZDeformed
+from .smoothing import getSmoothenedNormalizedDeformedState
+from .smoothing import getSmoothenedDeformedState
 
 

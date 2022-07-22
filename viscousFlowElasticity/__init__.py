@@ -19,7 +19,14 @@ __all__ = ["epsilon","sigma",
            "normal_vector_outlet",
            "get_targetposition_on_tip_outlet", "get_target_displacement_on_tip_outlet",
            "contribution_to_bilinear_form_shape_tip", "contribution_to_linear_form_shape_tip",
-           "run_simulation_step", "getEvacuationTimeConstant", "get_simulation"
+           "run_simulation_step", "getEvacuationTimeConstant", "get_simulation",
+           "getSmoothenedNormalizedAxisymmetricZDeformed",
+           "getSmoothenedNormalizedDeformedState",
+           "getSmoothenedDeformedState",
+           "contribution_to_bilinear_form_shape_tip_fix_coordinates",
+           "contribution_to_linear_form_shape_tip_fix_coordinates",
+           "contribution_to_linear_form_xy_outlet",
+           "contribution_to_bilinear_form_xy_outlet"
            ]
 
 

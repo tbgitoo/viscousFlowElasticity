@@ -18,7 +18,7 @@ from viscousFlowElasticity.linearElasticity import sigma
 from viscousFlowElasticity.linearElasticity import extrapolate_E
 from viscousFlowElasticity.linearElasticity import getVanMises
 
-from viscousFlowElasticity.smoothing import getSmoothenedNormalizedAxisymmetric
+from viscousFlowElasticity.smoothing import getSmoothenedNormalizedAxisymmetricZDeformed
 from viscousFlowElasticity.smoothing import getAbsMax
 
 from viscousFlowElasticity.plasticDeformation import get_deformation_with_yield_strain
@@ -127,6 +127,17 @@ def contribution_to_bilinear_form_shape_tip(fes,mesh,u_last_step,torus_position_
                                         radius_ring=radius_ring) * v) * ds
 
 
+def contribution_to_bilinear_form_shape_tip_fix_coordinates(fes,mesh,r_penalty_factor=1e10):
+    penalty_r_dict = {"tip_outer": r_penalty_factor, "tip_outlet": 0, "barrel_outer": 0,
+                      "plunger": 0
+                      }
+    penalty_r = CoefficientFunction([penalty_r_dict[bound] for bound in mesh.GetBoundaries()])
+    u = fes.TrialFunction()
+    v = fes.TestFunction()
+    return penalty_r * (u[0]*v[0]+u[1]*v[1]+u[2]*v[2]) * ds
+
+
+
 
 
 
@@ -147,19 +158,64 @@ def contribution_to_linear_form_shape_tip(fes,mesh,u_last_step,torus_position_z=
                                         radius_ring=radius_ring) * v) * ds
 
 
+def contribution_to_linear_form_shape_tip_fix_coordinates(fes,mesh,u_last_step,torus_position_z=-0.001,radius_ring=0.0015,
+                                          radius_torus=0.001,r_penalty_factor=1e10):
+    penalty_r_dict = {"tip_outer": r_penalty_factor, "tip_outlet": 0, "barrel_outer": 0,
+                      "plunger": 0
+                      }
+    penalty_r = CoefficientFunction([penalty_r_dict[bound] for bound in mesh.GetBoundaries()])
+    v = fes.TestFunction()
+    tg=get_target_displacement_on_tip_outlet(u_last_step,
+                                 torus_position_z=torus_position_z,radius_ring=radius_ring,
+                                 radius_torus=radius_torus,radius_outlet=radius_ring-radius_torus)
+    return penalty_r * (tg[0]*v[0]+tg[1]*v[1]+tg[2]*v[2]) * ds
+
+def contribution_to_linear_form_xy_outlet(fes,mesh,u_last_step,torus_position_z=-0.001,radius_ring=0.0015,
+                                          radius_torus=0.001,r_penalty_factor=1e10):
+    penalty_r_dict = {"tip_outer": r_penalty_factor, "tip_outlet": 0, "barrel_outer": 0,
+                      "plunger": 0
+                      }
+    penalty_r = CoefficientFunction([penalty_r_dict[bound] for bound in mesh.GetBoundaries()])
+    v = fes.TestFunction()
+    below_tip = IfPos(torus_position_z - (z + u_last_step[2]), 1, 0)
+    # The desired displacement, in plane, is such that a radius of radius_ring-radius_torus is reached, from the original x y position
+    desirable_displacement_x = IfPos(x * x + y * y, x * (1 - (radius_ring - radius_torus) / sqrt(x * x + y * y)), 0)
+    desirable_displacement_y = IfPos(x * x + y * y, y * (1 - (radius_ring - radius_torus) / sqrt(x * x + y * y)), 0)
+    return penalty_r * below_tip * desirable_displacement_x * v[
+        0] * ds + penalty_r * below_tip * desirable_displacement_y * v[1] * ds
+
+def contribution_to_bilinear_form_xy_outlet(fes,mesh,u_last_step,torus_position_z=-0.001,
+                                          r_penalty_factor=1e10):
+    penalty_r_dict = {"tip_outer": r_penalty_factor, "tip_outlet": 0, "barrel_outer": 0,
+                      "plunger": 0
+                      }
+    penalty_r = CoefficientFunction([penalty_r_dict[bound] for bound in mesh.GetBoundaries()])
+    v = fes.TestFunction()
+    u = fes.TrialFunction()
+    below_tip = IfPos(torus_position_z - (z + u_last_step[2]), 1, 0)
+    return penalty_r * below_tip  * u[0] * v[
+        0] * ds + penalty_r * below_tip * u[1] * v[1] * ds
+
+
 
 
 def run_simulation_step(fes,mesh,E,nu,volumeChange,plastic_deformation,u_last_step,
                         torus_position_z=-0.001,radius_ring=0.0015,
                         radius_torus=0.001,
                         plunger_z_penalty_factor=1e10,xy_plunger_penalty_factor=1e10,r_penalty_factor_barrel=1e10,
-                        plunger_displacement=0,r_penalty_factor=1e10):
+                        plunger_displacement=0,r_penalty_factor=1e10,fix_coordinates_on_outlet=False,
+                        increase_penalty_fix_coordinates=1):
     a_incompressible=get_basic_bilinear_form(fes,mesh,
                                              E,nu=nu,plunger_z_penalty_factor=plunger_z_penalty_factor,
                                              xy_plunger_penalty_factor=xy_plunger_penalty_factor,
                                              r_penalty_factor_barrel=r_penalty_factor_barrel)
+    if fix_coordinates_on_outlet:
+        a_incompressible += contribution_to_bilinear_form_shape_tip_fix_coordinates(fes,mesh,
+                                    r_penalty_factor=r_penalty_factor*increase_penalty_fix_coordinates)
     a_incompressible += contribution_to_bilinear_form_shape_tip(fes,mesh,u_last_step,
-        torus_position_z=torus_position_z,radius_ring=radius_ring,r_penalty_factor=r_penalty_factor)
+            torus_position_z=torus_position_z,radius_ring=radius_ring,r_penalty_factor=r_penalty_factor)
+    a_incompressible += contribution_to_bilinear_form_xy_outlet(fes,mesh,u_last_step,
+        torus_position_z=torus_position_z,r_penalty_factor=r_penalty_factor)
     c = MultiGridPreconditioner(a_incompressible)
     a_incompressible.Assemble()
     f=get_basic_linear_form(fes,mesh,plunger_z_penalty_factor=plunger_z_penalty_factor,plunger_displacement=plunger_displacement)
@@ -168,6 +224,17 @@ def run_simulation_step(fes,mesh,E,nu,volumeChange,plastic_deformation,u_last_st
     f+=contribution_to_linear_form_shape_tip(fes,mesh,u_last_step,
         torus_position_z=torus_position_z,radius_ring=radius_ring,
         radius_torus=radius_torus,r_penalty_factor=r_penalty_factor)
+    if fix_coordinates_on_outlet:
+        f += contribution_to_linear_form_shape_tip_fix_coordinates(fes,mesh,u_last_step,
+                                        torus_position_z=torus_position_z,radius_ring=radius_ring,
+                                        radius_torus=radius_torus,
+                                        r_penalty_factor=r_penalty_factor*increase_penalty_fix_coordinates)
+    f += contribution_to_linear_form_shape_tip(fes, mesh, u_last_step,
+                                                   torus_position_z=torus_position_z, radius_ring=radius_ring,
+                                                   radius_torus=radius_torus, r_penalty_factor=r_penalty_factor)
+    f+=contribution_to_linear_form_xy_outlet(fes,mesh,u_last_step,
+                                          torus_position_z=torus_position_z,radius_ring=radius_ring,
+                                          radius_torus=radius_torus,r_penalty_factor=r_penalty_factor)
     f.Assemble()
     u = GridFunction(fes)
     BVP(bf=a_incompressible, lf=f, gf=u, pre=c)
@@ -216,7 +283,8 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,K=1e5,dt_max=0.0
                    plunger_displacement_initial=0,
                    plunger_displacement_rate_m_sec=-1e-4,
                    max_plunger_displacement = -5e-4,r_penalty_factor=1e10,safety_factor=1,
-                   volume_change_max=0.8,yield_strain=0.2,p_offset=300):
+                   volume_change_max=0.8,yield_strain=0.2,p_offset=300,
+                   increase_penalty_fix_coordinates=1):
     mesh = loadMesh(mesh_filename)
     evacuationTimeConstant=getEvacuationTimeConstant(mesh, K, E, nu,p_offset=p_offset)
     mean_fluid_evacuation_time = Integrate(evacuationTimeConstant,mesh)/Integrate(1,mesh)
@@ -254,9 +322,11 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,K=1e5,dt_max=0.0
                                 plunger_z_penalty_factor=plunger_z_penalty_factor,
                                 xy_plunger_penalty_factor=xy_plunger_penalty_factor,
                                 r_penalty_factor_barrel=r_penalty_factor_barrel,
-                                plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor
+                                plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
+                                fix_coordinates_on_outlet=True,
+                                increase_penalty_fix_coordinates=increase_penalty_fix_coordinates
                                 )
-        u=getSmoothenedNormalizedAxisymmetric(mesh, u, sd)
+        u=getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u,u_old, sd)
         u_old.Set(u) # Repetition of the smoothing and simulation step to obtain better agreement
         # between u_old and u and thus better finite geometrical displacements for the tip_outer boundary domain
         u = run_simulation_step(fes, mesh, extrapolate_E(E, nu), nu_i, volumeChange, plastic_deformation, u_old,
@@ -265,17 +335,19 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,K=1e5,dt_max=0.0
                                 plunger_z_penalty_factor=plunger_z_penalty_factor,
                                 xy_plunger_penalty_factor=xy_plunger_penalty_factor,
                                 r_penalty_factor_barrel=r_penalty_factor_barrel,
-                                plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor
-                                )
-        u = getSmoothenedNormalizedAxisymmetric(mesh, u, sd)
+                                plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
+                                fix_coordinates_on_outlet=True,
+                                increase_penalty_fix_coordinates=increase_penalty_fix_coordinates)
+        u = getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u,u_old, sd)
         u_scaffold=run_simulation_step(fes, mesh, E, nu, GridFunction(fesx), plastic_deformation, u_old,
                                        torus_position_z=torus_position_z, radius_ring=radius_ring,
                                        radius_torus=radius_torus,
                                        plunger_z_penalty_factor=plunger_z_penalty_factor,
                                        xy_plunger_penalty_factor=xy_plunger_penalty_factor,
-                                       plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor
-                                       )
-        u_scaffold = getSmoothenedNormalizedAxisymmetric(mesh, u_scaffold, sd)
+                                       plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
+                                       fix_coordinates_on_outlet = True,
+                                       increase_penalty_fix_coordinates=increase_penalty_fix_coordinates)
+        u_scaffold = getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u_scaffold,u_old, sd)
         stress = sigma(epsilon(u), extrapolate_E(E, nu), nu_i)  # -sigma(epsilon(gg1), E, nu)
         stress_deformatory = stress - Trace(stress) * Id(3) / 3
         strain_deformatory = (1 + nu) / E * stress_deformatory
@@ -324,7 +396,7 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,K=1e5,dt_max=0.0
         volumeChangeNew = GridFunction(fesx)
         volumeChangeNew.Set(volumeChange + changeExcessVolume*cf_fluid)
         Draw(plastic_deformation, mesh, "plastic_deformation")
-        volumeChange = getSmoothenedNormalizedAxisymmetric(mesh,volumeChangeNew,sd)
+        volumeChange = getSmoothenedNormalizedAxisymmetricZDeformed(mesh,volumeChangeNew,u,sd)
         Draw(volumeChange, mesh, "volume_change")
         return_dict["t"].append(t)
         return_dict["plunger_position"].append(plunger_displacement)

@@ -70,6 +70,27 @@ def getSmoothened(mesh,toSmooth,sd):
     return output
 
 
+def getSmoothenedDeformedState(mesh,toSmooth,u,sd):
+    fes=H1(mesh, order=1, dim=toSmooth.dim)
+    output=GridFunction(fes)
+    # loop over the vertices of the mesh, in order 1, those are also the data elements of the grid function
+    ind=0
+    for v in mesh.vertices:
+        posx=v.point[0]
+        posy=v.point[1]
+        posz=v.point[2]
+        posx_d=u(mesh(posx, posy, posz))[0]+posx
+        posy_d = u(mesh(posx, posy, posz))[1]+posy
+        posz_d = u(mesh(posx,posy, posz))[2]+posz
+        sq=math.sqrt(2*math.pi)*math.sqrt(2*math.pi)*math.sqrt(2*math.pi)*sd*sd*sd
+        output.vec.data[ind]=Integrate(exp(-((x+u[0]-posx_d)*(x+u[0]-posx_d)+(y+u[1]-posy_d)*(y+u[1]-posy_d)+(z+u[2]-posz_d)*(z+u[2]-posz_d))/2/sd/sd)*toSmooth/sq,mesh)
+        ind=ind+1
+    return output
+
+
+
+
+
 
 # toSmooth is a grid function defined on the mesh
 def getSmoothenedNormalized(mesh,toSmooth,sd):
@@ -92,8 +113,31 @@ def getSmoothenedNormalized(mesh,toSmooth,sd):
                             (x - posx) * (x - posx) + (y - posy) * (y - posy) + (z - posz) * (
                                 z - posz)) / 2 / sd / sd) * input[ind2], mesh) / normalization_factor
         ind=ind+1
-        if ind % 100 == 0:
-            print(ind, " of ", len(output.vec.data))
+    return output
+
+# toSmooth is a grid function defined on the mesh
+def getSmoothenedNormalizedDeformedState(mesh,toSmooth,u,sd):
+    fes=H1(mesh, order=1, dim=toSmooth.dim)
+    input=GridFunction(fes)
+    input.Set(toSmooth)
+    output=GridFunction(fes)
+    # loop over the vertices of the mesh, in order 1, those are also the data elements of the grid function
+    ind=0
+    for v in mesh.vertices:
+        posx=v.point[0]
+        posy=v.point[1]
+        posz=v.point[2]
+        posx_d = u(mesh(posx, posy, posz))[0] + posx
+        posy_d = u(mesh(posx, posy, posz))[1] + posy
+        posz_d = u(mesh(posx, posy, posz))[2] + posz
+        normalization_factor = Integrate(exp(-((x+u[0]-posx_d)*(x+u[0]-posx_d)+(y+u[1]-posy_d)*(y+u[1]-posy_d)+(z+u[2]-posz_d)*(z+u[2]-posz_d))/2/sd/sd),mesh)
+        if input.dim==1:
+            output.vec.data[ind]=Integrate(exp(-((x+u[0]-posx_d)*(x+u[0]-posx_d)+(y+u[1]-posy_d)*(y+u[1]-posy_d)+(z+u[2]-posz_d)*(z+u[2]-posz_d))/2/sd/sd)*input,mesh)/normalization_factor
+        else:
+            for ind2 in range(input.dim):
+                output.vec.data[ind][ind2] = Integrate(exp(-((x+u[0]-posx_d)*(x+u[0]-posx_d)+
+                        (y+u[1]-posy_d)*(y+u[1]-posy_d)+(z+u[2]-posz_d)*(z+u[2]-posz_d))/2/sd/sd) * input[ind2], mesh) / normalization_factor
+        ind=ind+1
     return output
 
 
@@ -151,8 +195,63 @@ def getSmoothenedNormalizedAxisymmetric(mesh,toSmooth,sd):
             output.vec.data[ind][1]=sy
             output.vec.data[ind][2] = Integrate(integration_factor_z * input[2], mesh) / normalization_factor_z
         ind=ind+1
-        if ind % 100 == 0:
-            print(ind, " of ", len(output.vec.data))
+    return output
+
+
+def getSmoothenedNormalizedAxisymmetricZDeformed(mesh,toSmooth,u,sd):
+    fes=H1(mesh, order=1, dim=toSmooth.dim)
+    input=GridFunction(fes)
+    input.Set(toSmooth)
+    output=GridFunction(fes)
+    # loop over the vertices of the mesh, in order 1, those are also the data elements of the grid function
+    ind=0
+    for v in mesh.vertices:
+        posx=v.point[0]
+        posy=v.point[1]
+        posz=v.point[2]
+        posz_d = u(mesh(posx, posy, posz))[2] + posz
+        r2=posx*posx+posy*posy
+        r=sqrt(r2)
+        radial_distance_difference2=IfPos(r2-x*x-y*y,r2-x*x-y*y,-r2+x*x+y*y)
+        integration_factor_z = exp(
+            -(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)) / 2 / sd / sd)
+        normalization_factor_z = Integrate(
+            integration_factor_z,
+            mesh)
+        if input.dim==1:
+            output.vec.data[ind]=Integrate(integration_factor_z*input,mesh)/normalization_factor_z
+        else:
+            integration_factor_x = IfPos(r, x / r * exp(
+                -(radial_distance_difference2 + (z - posz) * (z - posz)) / 2 / sd / sd), CoefficientFunction(0))
+            normalization_factor_x = Integrate(
+                IfPos(r, x * x / r / r * exp(-(radial_distance_difference2 + (z - posz) * (z - posz)) / 2 / sd / sd),
+                      CoefficientFunction(0)),
+                mesh)
+            integration_factor_y = IfPos(r, y / r * exp(
+                -(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)) / 2 / sd / sd), CoefficientFunction(0))
+            normalization_factor_y = Integrate(
+                IfPos(r, y * y / r / r * exp(-(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)) / 2 / sd / sd),
+                      CoefficientFunction(0)),
+                mesh)
+            sx = Integrate(integration_factor_x*input[0],mesh)/normalization_factor_x
+            sy = Integrate(integration_factor_y * input[1], mesh) / normalization_factor_y
+            # Static situation without rotation around axis, so xy-displacements have to be around radial direction
+            if r2==0:
+                sx=0
+                sy=0
+            else:
+                if sx > 0:
+                    sx_new=posx/r*sqrt(sx*sx+sy*sy)
+                    sy_new=posy/r*sqrt(sx*sx+sy*sy)
+                else:
+                    sx_new = -posx / r * sqrt(sx * sx + sy * sy)
+                    sy_new = -posy / r * sqrt(sx * sx + sy * sy)
+                sx=sx_new
+                sy=sy_new
+            output.vec.data[ind][0]=sx
+            output.vec.data[ind][1]=sy
+            output.vec.data[ind][2] = Integrate(integration_factor_z * input[2], mesh) / normalization_factor_z
+        ind=ind+1
     return output
 
 
