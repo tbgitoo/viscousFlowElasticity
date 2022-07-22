@@ -19,6 +19,7 @@ from viscousFlowElasticity.linearElasticity import extrapolate_E
 from viscousFlowElasticity.linearElasticity import getVanMises
 
 from viscousFlowElasticity.smoothing import getSmoothenedNormalizedAxisymmetricZDeformed
+from viscousFlowElasticity.smoothing import getSmoothenedNormalizedAxisymmetric
 from viscousFlowElasticity.smoothing import getAbsMax
 
 from viscousFlowElasticity.plasticDeformation import get_deformation_with_yield_strain
