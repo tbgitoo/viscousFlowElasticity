@@ -336,7 +336,7 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,K=1e5,dt_max=0.0
                                 xy_plunger_penalty_factor=xy_plunger_penalty_factor,
                                 r_penalty_factor_barrel=r_penalty_factor_barrel,
                                 plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
-                                fix_coordinates_on_outlet=True,
+                                fix_coordinates_on_outlet=False,
                                 increase_penalty_fix_coordinates=increase_penalty_fix_coordinates)
         u = getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u,u_old, sd)
         u_scaffold=run_simulation_step(fes, mesh, E, nu, GridFunction(fesx), plastic_deformation, u_old,
@@ -345,7 +345,7 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,K=1e5,dt_max=0.0
                                        plunger_z_penalty_factor=plunger_z_penalty_factor,
                                        xy_plunger_penalty_factor=xy_plunger_penalty_factor,
                                        plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
-                                       fix_coordinates_on_outlet = True,
+                                       fix_coordinates_on_outlet = False,
                                        increase_penalty_fix_coordinates=increase_penalty_fix_coordinates)
         u_scaffold = getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u_scaffold,u_old, sd)
         stress = sigma(epsilon(u), extrapolate_E(E, nu), nu_i)  # -sigma(epsilon(gg1), E, nu)
