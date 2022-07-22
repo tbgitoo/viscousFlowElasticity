@@ -338,7 +338,7 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,K=1e5,dt_max=0.0
                                 plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
                                 fix_coordinates_on_outlet=False,
                                 increase_penalty_fix_coordinates=increase_penalty_fix_coordinates)
-        u = getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u,u_old, sd)
+        u = getSmoothenedNormalizedAxisymmetric(mesh, u, sd)
         u_scaffold=run_simulation_step(fes, mesh, E, nu, GridFunction(fesx), plastic_deformation, u_old,
                                        torus_position_z=torus_position_z, radius_ring=radius_ring,
                                        radius_torus=radius_torus,
@@ -347,7 +347,7 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,K=1e5,dt_max=0.0
                                        plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
                                        fix_coordinates_on_outlet = False,
                                        increase_penalty_fix_coordinates=increase_penalty_fix_coordinates)
-        u_scaffold = getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u_scaffold,u_old, sd)
+        u_scaffold = getSmoothenedNormalizedAxisymmetric(mesh, u_scaffold, sd)
         stress = sigma(epsilon(u), extrapolate_E(E, nu), nu_i)  # -sigma(epsilon(gg1), E, nu)
         stress_deformatory = stress - Trace(stress) * Id(3) / 3
         strain_deformatory = (1 + nu) / E * stress_deformatory
