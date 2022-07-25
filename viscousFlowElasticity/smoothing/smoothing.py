@@ -198,7 +198,7 @@ def getSmoothenedNormalizedAxisymmetric(mesh,toSmooth,sd):
     return output
 
 
-def getSmoothenedNormalizedAxisymmetricZDeformed(mesh,toSmooth,u,sd):
+def getSmoothenedNormalizedAxisymmetricZDeformed(mesh,toSmooth,u,sd,sd_z_ratio):
     fes=H1(mesh, order=1, dim=toSmooth.dim)
     input=GridFunction(fes)
     input.Set(toSmooth)
@@ -214,7 +214,7 @@ def getSmoothenedNormalizedAxisymmetricZDeformed(mesh,toSmooth,u,sd):
         r=sqrt(r2)
         radial_distance_difference2=IfPos(r2-x*x-y*y,r2-x*x-y*y,-r2+x*x+y*y)
         integration_factor_z = exp(
-            -(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)) / 2 / sd / sd)
+            -(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd)
         normalization_factor_z = Integrate(
             integration_factor_z,
             mesh)
@@ -222,15 +222,15 @@ def getSmoothenedNormalizedAxisymmetricZDeformed(mesh,toSmooth,u,sd):
             output.vec.data[ind]=Integrate(integration_factor_z*input,mesh)/normalization_factor_z
         else:
             integration_factor_x = IfPos(r, x / r * exp(
-                -(radial_distance_difference2 + (z - posz) * (z - posz)) / 2 / sd / sd), CoefficientFunction(0))
+                -(radial_distance_difference2 + (z - posz) * (z - posz)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd), CoefficientFunction(0))
             normalization_factor_x = Integrate(
-                IfPos(r, x * x / r / r * exp(-(radial_distance_difference2 + (z - posz) * (z - posz)) / 2 / sd / sd),
+                IfPos(r, x * x / r / r * exp(-(radial_distance_difference2 + (z - posz) * (z - posz)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd),
                       CoefficientFunction(0)),
                 mesh)
             integration_factor_y = IfPos(r, y / r * exp(
-                -(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)) / 2 / sd / sd), CoefficientFunction(0))
+                -(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd), CoefficientFunction(0))
             normalization_factor_y = Integrate(
-                IfPos(r, y * y / r / r * exp(-(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)) / 2 / sd / sd),
+                IfPos(r, y * y / r / r * exp(-(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd),
                       CoefficientFunction(0)),
                 mesh)
             sx = Integrate(integration_factor_x*input[0],mesh)/normalization_factor_x

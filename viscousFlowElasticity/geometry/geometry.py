@@ -9,6 +9,7 @@
 
 
 from ngsolve import *
+import ngsolve
 
 # outward pointing normal for cylinder
 def normal_vector_cylinder(u):
@@ -38,17 +39,24 @@ def normal_vector_torus(u,torus_position_z=-0.001,radius_ring=0.0015):
 def get_targetposition_on_torus_surface(u,torus_position_z=-0.001,radius_ring=0.0015,
                                           radius_torus=0.001):
     n=normal_vector_torus(u,torus_position_z=torus_position_z,radius_ring=radius_ring)
-    current_position = CoefficientFunction((x + u[0], y + u[1], z + u[2]))
+    current_position = CoefficientFunction((ngsolve.x + u[0], ngsolve.y + u[1], ngsolve.z + u[2]))
     # We have the surface normal. To go to the torus center, we need to get the z position right
-    d_to_torus_center = IfPos(n[2],(torus_position_z-current_position[2])/n[2],
-                              IfPos(n[0]*current_position[0]+n[1]*current_position[1],
-                                    radius_ring-(n[0]*current_position[0]+n[1]*current_position[1]),
-                                    n[0] * current_position[0] + n[1] * current_position[1]-radius_ring))
-    return current_position + IfPos(d_to_torus_center,(d_to_torus_center-radius_torus)*n,(radius_torus+d_to_torus_center)*n)
+    d_to_torus_center = (current_position[2]-torus_position_z)/n[2]
+    return current_position +(radius_torus-d_to_torus_center)*n
 
 def get_targetposition_on_cylinder_surface(u,radius=0.0005):
     n = normal_vector_cylinder(u)
     return CoefficientFunction((n[0]*radius,n[1]*radius,u[2]+z))
+
+def tangential_vector_horizontal_plane(position):
+    r=sqrt(position[0]*position[0]+position[1]*position[1])
+    return IfPos(r,
+          CoefficientFunction((-position[1]/r,position[0]/r,0)),
+          CoefficientFunction((0,0,0)))
+
+def vector_product(a,b):
+    return CoefficientFunction((a[1]*b[2]-a[2]*b[1],a[0]*b[2]-a[2]*b[0],a[0]*b[1]-a[1]*b[0]))
+
 
 
 
