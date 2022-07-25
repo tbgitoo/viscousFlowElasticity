@@ -405,11 +405,11 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,sd_z_ratio=1,K=1
         # This should cause a negative volume shift over time that offsets the positive pressure, and indeed, for negative volumeChange,
         # sigmaVolumetric is negative and so that plays out
         # at equilibrium, p=0 and the fluid loss offsets the difference between compressive and incompressible material scenarios as desired
-        p_fluid.Set(Trace(
-            sigma(epsilon(u), E, nu)-sigma(epsilon(u),extrapolate_E(E, nu),nu_i)+sigmaVolumetric(volumeChange, extrapolate_E(E, nu), nu_i, 3))/3)
         excessVolume=GridFunction(fesx)
         # For continuity, we limit here the volume change in a single step to 0.5, more corresponds to densification which would prevent further rapid volume change
-        excessVolume.Set(Trace(-epsilon(u_scaffold)+epsilon(u)))
+        kappa = 3 * E / (1 + nu) * (nu_i / (1 - 2 * nu_i) - nu / (1 - 2 * nu))
+        p_fluid.Set(Trace(-sigma(epsilon(u_scaffold),E,nu)+sigma(epsilon(u),extrapolate_E(E, nu, nu_incompressible=nu_i),nu_i)))
+        excessVolume.Set(p_fluid/kappa)
         Draw(excessVolume,mesh,"excess_Volume")
         if max_plastic_stress > 0:
             dt_yield = safety_factor * eta_yield / max_plastic_stress
