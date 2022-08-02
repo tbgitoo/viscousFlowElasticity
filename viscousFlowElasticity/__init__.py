@@ -14,6 +14,9 @@ __all__ = ["epsilon","sigma",
            "get_deformation_with_yield_strain",
            "normal_vector_cylinder","normal_vector_torus",
            "get_targetposition_on_torus_surface", "get_targetposition_on_cylinder_surface",
+           "tangential_vector_horizontal_plane","vector_product","vector_product_numbers",
+           "volumeChangeFromMesh",
+           "deformedMeshVolume"
            "loadMesh","get_basic_bilinear_form",
            "get_basic_linear_form","stress_surface_force_linear_form_contribution",
            "normal_vector_outlet",
@@ -26,7 +29,8 @@ __all__ = ["epsilon","sigma",
            "contribution_to_bilinear_form_shape_tip_fix_coordinates",
            "contribution_to_linear_form_shape_tip_fix_coordinates",
            "contribution_to_linear_form_xy_outlet",
-           "contribution_to_bilinear_form_xy_outlet"
+           "contribution_to_bilinear_form_xy_outlet",
+
            ]
 
 

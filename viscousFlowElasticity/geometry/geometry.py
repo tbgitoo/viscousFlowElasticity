@@ -57,6 +57,160 @@ def tangential_vector_horizontal_plane(position):
 def vector_product(a,b):
     return CoefficientFunction((a[1]*b[2]-a[2]*b[1],a[0]*b[2]-a[2]*b[0],a[0]*b[1]-a[1]*b[0]))
 
+def vector_product_numbers(a,b):
+    return [a[1] * b[2] - a[2] * b[1], a[0] * b[2] - a[2] * b[0], a[0] * b[1] - a[1] * b[0]]
+
+
+def totalMeshVolume(mesh,u):
+    fes3 = H1(mesh, order=1, dim=3)
+    fes1 = H1(mesh, order=1, dim=1)
+    u1 = GridFunction(fes3)
+    u1.Set(u)  # to be sure that we have a displacement per node
+    x_coords = []
+    y_coords = []
+    z_coords = []
+    V_u_tot=0
+    for v in mesh.vertices:
+        x_coords.append(v.point[0])
+        y_coords.append(v.point[1])
+        z_coords.append(v.point[2])
+    for tetraeder in mesh.Elements():
+        v1 = [x_coords[tetraeder.vertices[1].nr] - x_coords[tetraeder.vertices[0].nr],
+              y_coords[tetraeder.vertices[1].nr] - y_coords[tetraeder.vertices[0].nr],
+              z_coords[tetraeder.vertices[1].nr] - z_coords[tetraeder.vertices[0].nr]]
+        v1_u = [v1[0] + u1.vec.data[tetraeder.vertices[1].nr][0] - u1.vec.data[tetraeder.vertices[0].nr][0],
+                v1[1] + u1.vec.data[tetraeder.vertices[1].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v1[2] + u1.vec.data[tetraeder.vertices[1].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v2 = [x_coords[tetraeder.vertices[2].nr] - x_coords[tetraeder.vertices[0].nr],
+              y_coords[tetraeder.vertices[2].nr] - y_coords[tetraeder.vertices[0].nr],
+              z_coords[tetraeder.vertices[2].nr] - z_coords[tetraeder.vertices[0].nr]]
+        v2_u = [v2[0] + u1.vec.data[tetraeder.vertices[2].nr][0] - u1.vec.data[tetraeder.vertices[0].nr][0],
+                v2[1] + u1.vec.data[tetraeder.vertices[2].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v2[2] + u1.vec.data[tetraeder.vertices[2].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v3 = [x_coords[tetraeder.vertices[3].nr] - x_coords[tetraeder.vertices[0].nr],
+              y_coords[tetraeder.vertices[3].nr] - y_coords[tetraeder.vertices[0].nr],
+              z_coords[tetraeder.vertices[3].nr] - z_coords[tetraeder.vertices[0].nr]]
+        v3_u = [v3[0] + u1.vec.data[tetraeder.vertices[3].nr][0] - u1.vec.data[tetraeder.vertices[0].nr][0],
+                v3[1] + u1.vec.data[tetraeder.vertices[3].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v3[2] + u1.vec.data[tetraeder.vertices[3].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v1v2_u = vector_product_numbers(v1_u, v2_u)
+        V_u = abs(v3_u[0] * v1v2_u[0] + v3_u[1] * v1v2_u[1] + v3_u[2] * v1v2_u[2]) / 6
+        V_u_tot=V_u_tot+V_u
+    return V_u_tot
+
+
+def deformedMeshVolume(mesh,u):
+    fes3 = H1(mesh, order=1, dim=3)
+    fes1 = H1(mesh, order=1, dim=1)
+    u1=GridFunction(fes3)
+    u1.Set(u) # to be sure that we have a displacement per node
+    n=GridFunction(fes1) # Number of elements in which a given node is placed, will be used to normalize at the end
+    dv=GridFunction(fes1)
+    x_coords=[]
+    y_coords=[]
+    z_coords=[]
+    vol=[]
+    for v in mesh.vertices:
+        x_coords.append(v.point[0])
+        y_coords.append(v.point[1])
+        z_coords.append(v.point[2])
+        vol.append(0)
+    for tetraeder in mesh.Elements():
+        v1=[x_coords[tetraeder.vertices[1].nr]-x_coords[tetraeder.vertices[0].nr],
+            y_coords[tetraeder.vertices[1].nr]-y_coords[tetraeder.vertices[0].nr],
+            z_coords[tetraeder.vertices[1].nr]-z_coords[tetraeder.vertices[0].nr]]
+        v1_u = [v1[0]+u1.vec.data[tetraeder.vertices[1].nr][0]-u1.vec.data[tetraeder.vertices[0].nr][0],
+                v1[1] + u1.vec.data[tetraeder.vertices[1].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v1[2] + u1.vec.data[tetraeder.vertices[1].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v2 = [x_coords[tetraeder.vertices[2].nr] - x_coords[tetraeder.vertices[0].nr],
+              y_coords[tetraeder.vertices[2].nr] - y_coords[tetraeder.vertices[0].nr],
+              z_coords[tetraeder.vertices[2].nr] - z_coords[tetraeder.vertices[0].nr]]
+        v2_u = [v2[0] + u1.vec.data[tetraeder.vertices[2].nr][0] - u1.vec.data[tetraeder.vertices[0].nr][0],
+                v2[1] + u1.vec.data[tetraeder.vertices[2].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v2[2] + u1.vec.data[tetraeder.vertices[2].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v3 = [x_coords[tetraeder.vertices[3].nr] - x_coords[tetraeder.vertices[0].nr],
+              y_coords[tetraeder.vertices[3].nr] - y_coords[tetraeder.vertices[0].nr],
+              z_coords[tetraeder.vertices[3].nr] - z_coords[tetraeder.vertices[0].nr]]
+        v3_u = [v3[0] + u1.vec.data[tetraeder.vertices[3].nr][0] - u1.vec.data[tetraeder.vertices[0].nr][0],
+                v3[1] + u1.vec.data[tetraeder.vertices[3].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v3[2] + u1.vec.data[tetraeder.vertices[3].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v1v2 = vector_product_numbers(v1,v2)
+        v1v2_u = vector_product_numbers(v1_u,v2_u)
+        V=abs(v3[0]*v1v2[0]+v3[1]*v1v2[1]+v3[2]*v1v2[2])/6
+        V_u = abs(v3_u[0] * v1v2_u[0] + v3_u[1] * v1v2_u[1] + v3_u[2] * v1v2_u[2]) / 6
+        vol[tetraeder.vertices[0].nr]=vol[tetraeder.vertices[0].nr]+V_u*V
+        vol[tetraeder.vertices[1].nr] = vol[tetraeder.vertices[1].nr] + V_u*V
+        vol[tetraeder.vertices[2].nr] = vol[tetraeder.vertices[2].nr] + V_u*V
+        vol[tetraeder.vertices[3].nr] = vol[tetraeder.vertices[3].nr] + V_u*V
+        n.vec.data[tetraeder.vertices[0].nr]=n.vec.data[tetraeder.vertices[0].nr]+V
+        n.vec.data[tetraeder.vertices[1].nr] = n.vec.data[tetraeder.vertices[1].nr] + V
+        n.vec.data[tetraeder.vertices[2].nr] = n.vec.data[tetraeder.vertices[2].nr] + V
+        n.vec.data[tetraeder.vertices[3].nr] = n.vec.data[tetraeder.vertices[3].nr] + V
+    for v in mesh.vertices:
+        dv.vec.data[v.nr]=vol[v.nr]/n.vec.data[v.nr]
+    return dv
+
+
+
+def volumeChangeFromMesh(mesh,u):
+    fes3 = H1(mesh, order=1, dim=3)
+    fes1 = H1(mesh, order=1, dim=1)
+    u1=GridFunction(fes3)
+    u1.Set(u) # to be sure that we have a displacement per node
+    n=GridFunction(fes1) # Number of elements in which a given node is placed, will be used to normalize at the end
+    dv=GridFunction(fes1)
+    x_coords=[]
+    y_coords=[]
+    z_coords=[]
+    vol=[]
+    for v in mesh.vertices:
+        x_coords.append(v.point[0])
+        y_coords.append(v.point[1])
+        z_coords.append(v.point[2])
+        vol.append(0)
+    for tetraeder in mesh.Elements():
+        v1=[x_coords[tetraeder.vertices[1].nr]-x_coords[tetraeder.vertices[0].nr],
+            y_coords[tetraeder.vertices[1].nr]-y_coords[tetraeder.vertices[0].nr],
+            z_coords[tetraeder.vertices[1].nr]-z_coords[tetraeder.vertices[0].nr]]
+        v1_u = [v1[0]+u1.vec.data[tetraeder.vertices[1].nr][0]-u1.vec.data[tetraeder.vertices[0].nr][0],
+                v1[1] + u1.vec.data[tetraeder.vertices[1].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v1[2] + u1.vec.data[tetraeder.vertices[1].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v2 = [x_coords[tetraeder.vertices[2].nr] - x_coords[tetraeder.vertices[0].nr],
+              y_coords[tetraeder.vertices[2].nr] - y_coords[tetraeder.vertices[0].nr],
+              z_coords[tetraeder.vertices[2].nr] - z_coords[tetraeder.vertices[0].nr]]
+        v2_u = [v2[0] + u1.vec.data[tetraeder.vertices[2].nr][0] - u1.vec.data[tetraeder.vertices[0].nr][0],
+                v2[1] + u1.vec.data[tetraeder.vertices[2].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v2[2] + u1.vec.data[tetraeder.vertices[2].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v3 = [x_coords[tetraeder.vertices[3].nr] - x_coords[tetraeder.vertices[0].nr],
+              y_coords[tetraeder.vertices[3].nr] - y_coords[tetraeder.vertices[0].nr],
+              z_coords[tetraeder.vertices[3].nr] - z_coords[tetraeder.vertices[0].nr]]
+        v3_u = [v3[0] + u1.vec.data[tetraeder.vertices[3].nr][0] - u1.vec.data[tetraeder.vertices[0].nr][0],
+                v3[1] + u1.vec.data[tetraeder.vertices[3].nr][1] - u1.vec.data[tetraeder.vertices[0].nr][1],
+                v3[2] + u1.vec.data[tetraeder.vertices[3].nr][2] - u1.vec.data[tetraeder.vertices[0].nr][2]]
+        v1v2 = vector_product_numbers(v1,v2)
+        v1v2_u = vector_product_numbers(v1_u,v2_u)
+        V=abs(v3[0]*v1v2[0]+v3[1]*v1v2[1]+v3[2]*v1v2[2])/6
+        V_u = abs(v3_u[0] * v1v2_u[0] + v3_u[1] * v1v2_u[1] + v3_u[2] * v1v2_u[2]) / 6
+        vol[tetraeder.vertices[0].nr]=vol[tetraeder.vertices[0].nr]+V_u-V
+        vol[tetraeder.vertices[1].nr] = vol[tetraeder.vertices[1].nr] + V_u - V
+        vol[tetraeder.vertices[2].nr] = vol[tetraeder.vertices[2].nr] + V_u - V
+        vol[tetraeder.vertices[3].nr] = vol[tetraeder.vertices[3].nr] + V_u - V
+        n.vec.data[tetraeder.vertices[0].nr]=n.vec.data[tetraeder.vertices[0].nr]+V
+        n.vec.data[tetraeder.vertices[1].nr] = n.vec.data[tetraeder.vertices[1].nr] + V
+        n.vec.data[tetraeder.vertices[2].nr] = n.vec.data[tetraeder.vertices[2].nr] + V
+        n.vec.data[tetraeder.vertices[3].nr] = n.vec.data[tetraeder.vertices[3].nr] + V
+    for v in mesh.vertices:
+        dv.vec.data[v.nr]=vol[v.nr]/n.vec.data[v.nr]
+    return dv
+
+
+
+
+
+
+
+
+
 
 
 

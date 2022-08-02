@@ -15,6 +15,18 @@ def epsilon(u):
     """Strain from deformation field, symmetric"""
     return  0.5*(Grad(u)+Grad(u).trans)
 
+def volumeEpsilonLargeScale(u):
+    eps=epsilon(u)
+    e1 = CoefficientFunction((1+eps[0],eps[1],eps[2]))
+    e2 = CoefficientFunction((eps[3],1+eps[4],eps[5]))
+    e3 = CoefficientFunction((eps[6],eps[7],1+eps[8]))
+    e1e2=CoefficientFunction((e1[1]*e2[2]-e1[2]*e2[1],e1[0]*e2[2]-e1[2]*e2[0],e1[0]*e2[1]-e1[1]*e2[0]))
+    V_determinant=e1e2[0]*e3[0]+e1e2[1]*e3[1]+e1e2[2]*e3[2]
+    return IfPos(V_determinant-1,V_determinant-1,1-1/V_determinant)
+
+
+
+
 def sigma(strain,E,nu):
     mu = E / 2 / (1 + nu)
     lam = E * nu / ((1 + nu) * (1 - 2 * nu))
