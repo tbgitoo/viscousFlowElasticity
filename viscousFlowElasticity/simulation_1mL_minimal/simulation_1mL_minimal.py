@@ -449,7 +449,8 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,sd_z_ratio=1,K=1
         plastic_deformation_delta=GridFunction(fesstress)
         plastic_deformation_delta.Set(get_deformation_with_yield_strain(plastic_deformation_delta_all,yield_strain))
         Draw(plastic_deformation_delta, mesh, "strain_deformatory")
-        max_plastic_stress = getAbsMax(getVanMises(sigma(plastic_deformation_delta,extrapolate_E(E, nu), nu_i)) , mesh)
+        plastic_stress_vanMises= getVanMises(sigma(plastic_deformation_delta,extrapolate_E(E, nu), nu_i))
+        max_plastic_stress = sqrt(Integrate(plastic_stress_vanMises*plastic_stress_vanMises,mesh)/Integrate(CoefficientFunction(1),mesh))
         if max_plastic_stress>E*threshold_for_sliding_freely and use_plastic_deformation:
             is_sliding=True
         else:
@@ -494,7 +495,7 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,sd_z_ratio=1,K=1
         print("Max projected volume change ",changeExcessVolumeMax)
         plastic_deformation_new = GridFunction(fesstress)
         if use_plastic_deformation:
-            plastic_deformation_new.Set(plastic_deformation + safety_factor * plastic_deformation_delta*dt/dt_yield)
+            plastic_deformation_new.Set(plastic_deformation + safety_factor * plastic_deformation_delta*(1-exp(-dt/dt_yield)))
             plastic_deformation = plastic_deformation_new
         volumeChangeNew = GridFunction(fesx)
         if is_sliding: # While sliding, we consider time stopped and not volume exchange taking place until it stops
@@ -545,4 +546,201 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,sd_z_ratio=1,K=1
 
 
 
+def continue_simulation(mesh,evacuationTimeConstant,volumeChangeLast,plasticDeformationLast,uLast,E=2e6, nu=0,nu_i=0.4975,sd=0.1,sd_z_ratio=1,K=1e5,dt_max=0.01,dt_min=0.0001,eta_yield=1e6,n_steps=30,
+                   torus_position_z=-0.001,radius_ring=0.0015,
+                   radius_torus=0.001,
+                   plunger_z_penalty_factor=1e10,xy_plunger_penalty_factor=1e10,r_penalty_factor_barrel=1e10,
+                   plunger_displacement_initial=0,
+                   plunger_displacement_rate_m_sec=-1e-4,
+                   max_plunger_displacement = -5e-4,r_penalty_factor=1e10,safety_factor=1,
+                   yield_strain=0.2,p_offset=300,
+                   increase_penalty_fix_coordinates=1,use_plastic_deformation=True,
+                   do_full_volume_equilibration=False,
+                   threshold_for_sliding_freely=10,use_mesh_deformation_for_Volume=True):
+    mean_fluid_evacuation_time = Integrate(evacuationTimeConstant,mesh)/Integrate(1,mesh)
+    print("Mean fluid evacuation time constant = ",mean_fluid_evacuation_time,"\n")
+    Draw(evacuationTimeConstant,mesh,"evacuationTimeConstant")
+    fes = H1(mesh, order=2, dim=3)
+    fesx = H1(mesh, order=2, dim=1)
+    fesx1 = H1(mesh, order=1, dim=1)
+    volumeChange = GridFunction(fesx1)
+    volumeChange.Set(volumeChangeLast)
+    fesstress = H1(mesh, order=1, dim=9)
+    plastic_deformation = GridFunction(fesstress)
+    plastic_deformation.Set(plasticDeformationLast)
+    return_dict = {
+        "mesh": mesh,
+        "evacuationTimeConstant":evacuationTimeConstant,
+        "u": [],
+        "stress": [],
+        "strain": [],
+        "delta_plastic": [],
+        "p": [],
+        "V": [],
+        "plasticDeformation": [],
+        "t": [],
+        "plunger_position": []
+    }
+    t = 0
+    u_old = GridFunction(fes)
+    u_old.Set(uLast)
+    plunger_displacement=plunger_displacement_initial
+    is_sliding=False
+    ind =0
+    volume_error_finite_mesh_deformation=GridFunction(fesx1)
+    while ind < n_steps:
+        if ind>0:
+            u_old.Set(u)
+        if not is_sliding:
+            u = run_simulation_step(fes, mesh, extrapolate_E(E, nu), nu_i,
+                                volumeChange, plastic_deformation, u_old,
+                                torus_position_z=torus_position_z, radius_ring=radius_ring,
+                                radius_torus=radius_torus,
+                                plunger_z_penalty_factor=plunger_z_penalty_factor,
+                                xy_plunger_penalty_factor=xy_plunger_penalty_factor,
+                                r_penalty_factor_barrel=r_penalty_factor_barrel,
+                                plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
+                                fix_coordinates_on_outlet=True,
+                                increase_penalty_fix_coordinates=increase_penalty_fix_coordinates
+                                )
+            volume_error_finite_mesh_deformation = -(deformedMeshVolume(
+                        mesh, u)/deformedMeshVolume(mesh,
+                        CoefficientFunction((0, 0, 0)))  - 1 - volumeChange)
+            volume_error_finite_mesh_deformation=getSmoothenedNormalizedAxisymmetricZDeformed(mesh,
+                            volume_error_finite_mesh_deformation, u, sd, sd_z_ratio)
+            Draw(volume_error_finite_mesh_deformation,mesh,"Mesh_volume_nonlinearity")
+        u = run_simulation_step(fes, mesh, extrapolate_E(E, nu), nu_i, volumeChange, plastic_deformation, u_old,
+                                torus_position_z=torus_position_z, radius_ring=radius_ring,
+                                radius_torus=radius_torus,
+                                plunger_z_penalty_factor=plunger_z_penalty_factor,
+                                xy_plunger_penalty_factor=xy_plunger_penalty_factor,
+                                r_penalty_factor_barrel=r_penalty_factor_barrel,
+                                plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
+                                fix_coordinates_on_outlet=True,
+                                increase_penalty_fix_coordinates=increase_penalty_fix_coordinates
+                                )
+        #u=getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u,u_old, sd,sd_z_ratio)
+        u_old.Set(u) # Repetition of the smoothing and simulation step to obtain better agreement
+        # between u_old and u and thus better finite geometrical displacements for the tip_outer boundary domain
+        u = run_simulation_step(fes, mesh, extrapolate_E(E, nu), nu_i, volume_error_finite_mesh_deformation+volumeChange, plastic_deformation, u_old,
+                                torus_position_z=torus_position_z, radius_ring=radius_ring,
+                                radius_torus=radius_torus,
+                                plunger_z_penalty_factor=plunger_z_penalty_factor,
+                                xy_plunger_penalty_factor=xy_plunger_penalty_factor,
+                                r_penalty_factor_barrel=r_penalty_factor_barrel,
+                                plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
+                                fix_coordinates_on_outlet=False,
+                                increase_penalty_fix_coordinates=increase_penalty_fix_coordinates)
+        #u = getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u,u_old, sd,sd_z_ratio)
+        u_scaffold=run_simulation_step(fes, mesh, E, nu, volume_error_finite_mesh_deformation+volumeChange, plastic_deformation, u_old,
+                                       torus_position_z=torus_position_z, radius_ring=radius_ring,
+                                       radius_torus=radius_torus,
+                                       plunger_z_penalty_factor=plunger_z_penalty_factor,
+                                       xy_plunger_penalty_factor=xy_plunger_penalty_factor,
+                                       plunger_displacement=plunger_displacement, r_penalty_factor=r_penalty_factor,
+                                       fix_coordinates_on_outlet = False,
+                                       increase_penalty_fix_coordinates=increase_penalty_fix_coordinates)
+        #u_scaffold = getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u_scaffold,u_old, sd,sd_z_ratio)
+        stress = sigma(epsilon(getSmoothenedNormalizedAxisymmetricZDeformed(mesh, u, u_old, sd, sd_z_ratio)),extrapolate_E(E,nu,nu_i),nu)
+            # -sigma(epsilon(gg1), E, nu)
+        stress_deformatory = stress - Trace(stress) * Id(3) / 3
+        strain_deformatory = (1 + nu) / E * stress_deformatory
+        plastic_deformation_delta_all = strain_deformatory - plastic_deformation
+        plastic_deformation_delta=GridFunction(fesstress)
+        plastic_deformation_delta.Set(get_deformation_with_yield_strain(plastic_deformation_delta_all,yield_strain))
+        Draw(plastic_deformation_delta, mesh, "strain_deformatory")
+        max_plastic_stress = max_plastic_stress = sqrt(Integrate(plastic_stress_vanMises*plastic_stress_vanMises,mesh)/Integrate(CoefficientFunction(1),mesh))
+        if max_plastic_stress>E*threshold_for_sliding_freely and use_plastic_deformation:
+            is_sliding=True
+        else:
+            is_sliding=False
+        p_fluid = GridFunction(fesx) # We consider the fluid pressure to be the excess isometric strain develoopped under
+        # the incompressible material parameters minus the one that can be sustained by the solid material itself under
+        # the same deformation. Signs: if u is compressive, trace(epsilon(u)) is negative, and sigma also; the incompressible
+        # sigma is much larger in absolute magnitude and so the stress contribution will be positive
+        # This should cause a negative volume shift over time that offsets the positive pressure, and indeed, for negative volumeChange,
+        # sigmaVolumetric is negative and so that plays out
+        # at equilibrium, p=0 and the fluid loss offsets the difference between compressive and incompressible material scenarios as desired
+        excessVolume=GridFunction(fesx1)
+        # For continuity, we limit here the volume change in a single step to 0.5, more corresponds to densification which would prevent further rapid volume change
+        kappa = 3 * E / (1 + nu) * (nu_i / (1 - 2 * nu_i) - nu / (1 - 2 * nu))
+        if use_mesh_deformation_for_Volume:
+            excessVolume.Set(volumeChangeFromMesh(mesh,u)- volumeChangeFromMesh(mesh,u_scaffold))
+        else:
+            excessVolume.Set(Trace(epsilon(u))-Trace(epsilon(u_scaffold)))
+        excessVolume=getSmoothenedNormalizedAxisymmetricZDeformed(mesh, excessVolume, u, sd, sd_z_ratio)
+        p_fluid.Set(excessVolume*kappa)
+        Draw(excessVolume,mesh,"excess_Volume")
+        if max_plastic_stress > 0 and use_plastic_deformation:
+            dt_yield = safety_factor * eta_yield / max_plastic_stress
+        else:
+            dt_yield=dt_max
+        print("Plastic dt ", dt_yield, " at eta_yield = ", eta_yield, " and max plastic stress ",max_plastic_stress)
+        dt=dt_yield
+        if dt>mean_fluid_evacuation_time:
+            dt=mean_fluid_evacuation_time
+        if (dt > dt_max):
+            dt = dt_max
+        if (dt < dt_min):
+            dt = dt_min
+        if t>5: # For this slow speed, otherwise, it takes too many simulations
+            mean_fluid_evacuation_time=0.1
+        if t>10:
+            mean_fluid_evacuation_time = 0.2
+        changeExcessVolume = -excessVolume * (CoefficientFunction(1) - exp(-dt / IfPos(evacuationTimeConstant,evacuationTimeConstant,1e-6)))
+        if do_full_volume_equilibration:
+            changeExcessVolume = -excessVolume
+        changeExcessVolumeMax = getAbsMax(changeExcessVolume,mesh)
+        print("Max projected volume change ",changeExcessVolumeMax)
+        plastic_deformation_new = GridFunction(fesstress)
+        if use_plastic_deformation:
+            # Maximum deformation is the plastic_deformation_delta
+            plastic_deformation_new.Set(plastic_deformation + safety_factor * plastic_deformation_delta*(1-exp(-dt/dt_yield)))
+            plastic_deformation = plastic_deformation_new
+        volumeChangeNew = GridFunction(fesx)
+        if is_sliding: # While sliding, we consider time stopped and not volume exchange taking place until it stops
+            volumeChangeNew.Set(volumeChange)
+        else:
+            volumeChangeNew.Set(volumeChange + changeExcessVolume)
+        Draw(plastic_deformation, mesh, "plastic_deformation")
+        #volumeChange = getSmoothenedNormalizedAxisymmetricZDeformed(mesh,volumeChangeNew,u,sd,sd_z_ratio)
+        volumeChange=volumeChangeNew
+        Draw(volumeChange, mesh, "volume_change")
+        if not is_sliding:
+            t = t + dt
+            plunger_displacement=plunger_displacement+plunger_displacement_rate_m_sec*dt
+            if plunger_displacement<max_plunger_displacement: # Plunger is going down, this is for negative numbers
+                plunger_displacement=max_plunger_displacement
+        print("current dt", dt, "\n")
+        print("current t", t, "\n")
+        if is_sliding:
+            print("Currently material yielding, simulating yielding at stopped time and volume\n")
+        Draw(p_fluid,mesh,"p")
+        if not is_sliding:
+            return_dict["stress"].append(stress)
+            return_dict["strain"].append(epsilon(u))
+            return_dict["V"].append(volumeChange)
+            return_dict["plasticDeformation"].append(plastic_deformation)
+            return_dict["delta_plastic"].append(plastic_deformation_delta)
+            return_dict["u"].append(u)
+            return_dict["p"].append(p_fluid)
+            return_dict["t"].append(t)
+            return_dict["plunger_position"].append(plunger_displacement)
+            ind = ind + 1
+        Draw(u, mesh, "u")
+        print(ind, " of ", n_steps, " simulation steps done. Present piston position, theory = ", plunger_displacement)
+        piston_measured=Integrate(u[2], mesh, definedon=mesh.Boundaries('plunger'), VOL_or_BND=ngsolve.comp.VorB.BND)/ \
+        Integrate(1, mesh, definedon=mesh.Boundaries('plunger'), VOL_or_BND=ngsolve.comp.VorB.BND)
+        extrusion_measured=Integrate(u[2], mesh, definedon=mesh.Boundaries('tip_outlet'), VOL_or_BND=ngsolve.comp.VorB.BND)/ \
+        Integrate(1, mesh, definedon=mesh.Boundaries('tip_outlet'), VOL_or_BND=ngsolve.comp.VorB.BND)
+        print("piston position measured = ",piston_measured,"\n")
+        print("Extrusion position measured = ",extrusion_measured,"\n")
+        if piston_measured*piston_measured>0:
+            print("Ratio=",extrusion_measured/piston_measured,"\n")
+        volume_gain_overall=totalMeshVolume(mesh,u)/totalMeshVolume(mesh,CoefficientFunction((0,0,0)))-1
+        volumeChange_overall = Integrate(volumeChange, mesh) / \
+                              Integrate(1, mesh)
+        print("Overall volume change = ",volume_gain_overall)
+        print("Of which accounted for by pore fluid movement = ", volumeChange_overall)
+    return return_dict
 

@@ -219,22 +219,33 @@ def getSmoothenedNormalizedAxisymmetricZDeformed(mesh,toSmooth,u,sd,sd_z_ratio):
             integration_factor_z,
             mesh)
         if input.dim==1:
-            output.vec.data[ind]=Integrate(integration_factor_z*input,mesh)/normalization_factor_z
+            if normalization_factor_z==0:
+                output.vec.data[ind] = input.vec.data[ind]
+            else:
+                output.vec.data[ind]=Integrate(integration_factor_z*input,mesh)/normalization_factor_z
         else:
             integration_factor_x = IfPos(r, x / r * exp(
-                -(radial_distance_difference2 + (z - posz) * (z - posz)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd), CoefficientFunction(0))
+                -(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd), CoefficientFunction(0))
             normalization_factor_x = Integrate(
-                IfPos(r, x * x / r / r * exp(-(radial_distance_difference2 + (z - posz) * (z - posz)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd),
-                      CoefficientFunction(0)),
+                IfPos(r, x * x / r / r * exp(-(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd),
+                      CoefficientFunction(1)),
                 mesh)
             integration_factor_y = IfPos(r, y / r * exp(
                 -(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd), CoefficientFunction(0))
             normalization_factor_y = Integrate(
                 IfPos(r, y * y / r / r * exp(-(radial_distance_difference2 + (z+u[2] - posz_d) * (z+u[2] - posz_d)/sd_z_ratio/sd_z_ratio) / 2 / sd / sd),
-                      CoefficientFunction(0)),
+                      CoefficientFunction(1)),
                 mesh)
-            sx = Integrate(integration_factor_x*input[0],mesh)/normalization_factor_x
-            sy = Integrate(integration_factor_y * input[1], mesh) / normalization_factor_y
+            sx = 0
+            if normalization_factor_x > 0:
+                sx = Integrate(integration_factor_x*input[0],mesh)/normalization_factor_x
+            else:
+                sx = input.vec.data[ind][0]
+            sy = 0
+            if normalization_factor_y > 0:
+                sy = Integrate(integration_factor_y * input[1], mesh) / normalization_factor_y
+            else:
+                sy = input.vec.data[ind][1]
             # Static situation without rotation around axis, so xy-displacements have to be around radial direction
             if r2==0:
                 sx=0
@@ -250,7 +261,10 @@ def getSmoothenedNormalizedAxisymmetricZDeformed(mesh,toSmooth,u,sd,sd_z_ratio):
                 sy=sy_new
             output.vec.data[ind][0]=sx
             output.vec.data[ind][1]=sy
-            output.vec.data[ind][2] = Integrate(integration_factor_z * input[2], mesh) / normalization_factor_z
+            if normalization_factor_z > 0:
+                output.vec.data[ind][2] = Integrate(integration_factor_z * input[2], mesh) / normalization_factor_z
+            else:
+                output.vec.data[ind][2] = input.vec.data[ind][2]
         ind=ind+1
     return output
 

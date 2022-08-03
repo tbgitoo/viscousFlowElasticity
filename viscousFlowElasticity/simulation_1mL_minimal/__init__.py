@@ -12,7 +12,8 @@ __all__ = ["loadMesh","get_basic_bilinear_form",
            "contribution_to_linear_form_xy_outlet",
            "contribution_to_bilinear_form_xy_outlet",
            "contribution_to_bilinear_form_shape_tip_segment",
-           "normal_vector_outlet_displacement"
+           "normal_vector_outlet_displacement",
+           "continue_simulation"
            ]
 
 
@@ -36,4 +37,5 @@ from .simulation_1mL_minimal import contribution_to_linear_form_xy_outlet
 from .simulation_1mL_minimal import contribution_to_bilinear_form_xy_outlet
 from .simulation_1mL_minimal import contribution_to_bilinear_form_shape_tip_segment
 from .simulation_1mL_minimal import normal_vector_outlet_displacement
+from .simulation_1mL_minimal import continue_simulation
 
