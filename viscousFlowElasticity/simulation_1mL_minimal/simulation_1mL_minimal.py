@@ -308,39 +308,46 @@ def run_simulation_step(fes,mesh,E,nu,volumeChange,plastic_deformation,u_last_st
     return(u)
 
 
-
-def getEvacuationTimeConstant(mesh,K,E,nu,p_offset=300):
+# The simulation is with a Robin-type boundary condition where the fluid has to flow through a resistance of
+# real or equivalent length L=fluid_resistance_length that is filled with the same porous material
+# as the simulated area before reaching
+# a reservoir of constant pressure at p_offset
+def getEvacuationTimeConstant(mesh,K,E,nu,p_offset=300,fluid_resistance_length=1e-5,use_mean_element_size=True):
     fesx = H1(mesh, order=1, dim=1)
     kappa = E*3/(1-2*nu)
     time_constants=GridFunction(fesx)
     ind=0
+    localMeshVolume=deformedMeshVolume(mesh, CoefficientFunction((0,0,0)))
+    meanMeshVolume=totalMeshVolume(mesh,CoefficientFunction((0,0,0)))/len(localMeshVolume.vec)
     for v in mesh.vertices:
         fdiv= GridFunction(fesx) # this is our divergence for each element
-        fdiv.vec.data[ind]=1
-        a = BilinearForm(fesx, symmetric=True, condense=True)
-        v = fesx.TestFunction()
-        p = fesx.TrialFunction()
-        a += Grad(v)*Grad(p)*dx
-        f = LinearForm(fesx)
-        f += v*K*fdiv*dx
-        penalty_dict = {"tip_outer": 0, "tip_outlet": 1e6, "barrel_outer": 0,
+        if use_mean_element_size:
+            fdiv.vec.data[ind]=meanMeshVolume/localMeshVolume.vec.data[ind] # The divergence is such that the amount of fluid evacuated from this element corresponds to the mean mesh volume
+        else:
+            fdiv.vec.data[ind]=1
+        ind = ind + 1
+    a = BilinearForm(fesx, symmetric=True, condense=True)
+    v = fesx.TestFunction()
+    p = fesx.TrialFunction()
+    a += Grad(v)*Grad(p)*dx
+    f = LinearForm(fesx)
+    f += v*K*fdiv*dx
+    penalty_dict = {"tip_outer": 0, "tip_outlet": 1/fluid_resistance_length, "barrel_outer": 0,
                       "plunger": 0,
                       "barrel_front": 0,
                       "transition": 0
                       }
-        penalty_dict_coeff = CoefficientFunction([penalty_dict[bound] for bound in mesh.GetBoundaries()])
-        a+=p*v*penalty_dict_coeff*ds
-        f += p_offset * v * penalty_dict_coeff * ds
-        c = MultiGridPreconditioner(a)
-        a.Assemble()
-        f.Assemble()
-        pc = GridFunction(fesx)
-        BVP(bf=a, lf=f, gf=pc, pre=c)
-        time_constants.vec.data[ind]=pc.vec.data[ind]/kappa
-        ind=ind+1
-        #return pc
+    penalty_dict_coeff = CoefficientFunction([penalty_dict[bound] for bound in mesh.GetBoundaries()])
+    a+=p*v*penalty_dict_coeff*ds
+    f += p_offset * v * penalty_dict_coeff * ds
+    c = MultiGridPreconditioner(a)
+    a.Assemble()
+    f.Assemble()
+    pc = GridFunction(fesx)
+    BVP(bf=a, lf=f, gf=pc, pre=c)
+    time_constants.Set(pc/kappa)
     return time_constants
-    #return pc
+
 
 
 
@@ -352,12 +359,13 @@ def get_simulation(mesh_filename,E=2e6, nu=0,nu_i=0.4975,sd=0.1,sd_z_ratio=1,K=1
                    plunger_displacement_initial=0,
                    plunger_displacement_rate_m_sec=-1e-4,
                    max_plunger_displacement = -5e-4,r_penalty_factor=1e10,safety_factor=1,
-                   yield_strain=0.2,p_offset=300,
+                   yield_strain=0.2,p_offset=300,fluid_resistance_length=1e-5,
                    increase_penalty_fix_coordinates=1,use_plastic_deformation=True,
                    do_full_volume_equilibration=False,
                    threshold_for_sliding_freely=10,use_mesh_deformation_for_Volume=True):
     mesh = loadMesh(mesh_filename)
-    evacuationTimeConstant=getEvacuationTimeConstant(mesh, K, E, nu,p_offset=p_offset)
+    evacuationTimeConstant=getEvacuationTimeConstant(mesh, K, E, nu,p_offset=p_offset,fluid_resistance_length=fluid_resistance_length)
+    evacuationTimeConstant=getSmoothenedNormalizedAxisymmetricZDeformed(mesh, evacuationTimeConstant, CoefficientFunction((0,0,0)), sd, sd_z_ratio)
     mean_fluid_evacuation_time = Integrate(evacuationTimeConstant,mesh)/Integrate(1,mesh)
     print("Mean fluid evacuation time constant = ",mean_fluid_evacuation_time,"\n")
     Draw(evacuationTimeConstant,mesh,"evacuationTimeConstant")
