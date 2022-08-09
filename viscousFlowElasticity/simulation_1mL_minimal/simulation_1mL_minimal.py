@@ -322,9 +322,10 @@ def getEvacuationTimeConstant(mesh,K,E,nu,p_offset=300,fluid_resistance_length=1
     for v in mesh.vertices:
         fdiv= GridFunction(fesx) # this is our divergence for each element
         if use_mean_element_size:
-            fdiv.vec.data[ind]=meanMeshVolume/localMeshVolume.vec.data[ind] # The divergence is such that the amount of fluid evacuated from this element corresponds to the mean mesh volume
+            fdiv.vec.data[ind] = 1
         else:
-            fdiv.vec.data[ind]=1
+            fdiv.vec.data[ind] = meanMeshVolume / localMeshVolume.vec.data[ind]
+            # The divergence is such that the amount of fluid evacuated from this element corresponds to the mean mesh volume
         ind = ind + 1
     a = BilinearForm(fesx, symmetric=True, condense=True)
     v = fesx.TestFunction()
